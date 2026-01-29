@@ -166,6 +166,11 @@ def process_indicator_data(df: pd.DataFrame) -> pd.DataFrame:
         return df
     
     df = df[cols_to_keep].copy()
+
+    # Handle potential duplicate value columns
+    if "NumericValue" in df.columns and "Value" in df.columns:
+        df["Value"] = df["NumericValue"].combine_first(df["Value"])
+        df = df.drop(columns=["NumericValue"])
     
     # Rename columns for clarity
     rename_map = {
