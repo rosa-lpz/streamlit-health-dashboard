@@ -414,18 +414,21 @@ def main():
         
         df_year = df[df["Year"] == selected_year] if "Year" in df.columns else df
         
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
             st.metric("Countries with Data", len(df_year["Country_Code"].unique()) if "Country_Code" in df_year.columns else "N/A")
         
         with col2:
-            st.metric("Global Average", f"{df_year['Value'].mean():.2f}" if not df_year.empty else "N/A")
-        
+            st.metric("Global Total", f"{df_year['Value'].sum():.2f}" if not df_year.empty else "N/A")
+
         with col3:
-            st.metric("Minimum", f"{df_year['Value'].min():.2f}" if not df_year.empty else "N/A")
-        
+            st.metric("Global Average", f"{df_year['Value'].mean():.2f}" if not df_year.empty else "N/A")
+
         with col4:
+            st.metric("Minimum", f"{df_year['Value'].min():.2f}" if not df_year.empty else "N/A")
+
+        with col5:
             st.metric("Maximum", f"{df_year['Value'].max():.2f}" if not df_year.empty else "N/A")
         
         # Top and bottom performers
@@ -447,29 +450,36 @@ def main():
     
     elif view_mode == "🔍 Country Analysis":
         st.subheader(f"📍 {selected_country_name}")
+
+        filter_col1, filter_col2 = st.columns(2)
         
+        # Filters (same row)
+        if "Dimension_1" in df.columns:
+            unique_dims = df["Dimension_1"].dropna().unique()
+            if len(unique_dims) > 1:
+                with filter_col1:
+                    selected_dim = st.selectbox("Filter by Dimension", options=["All"] + list(unique_dims))
+                if selected_dim != "All":
+                    df = df[df["Dimension_1"] == selected_dim]
+
+        selected_year = None
+        if "Year" in df.columns and available_years:
+            with filter_col2:
+                selected_year = st.selectbox(
+                    "Select Year",
+                    options=available_years,
+                    index=len(available_years) - 1 if available_years else 0
+                )
+
         # Time series chart
         if "Year" in df.columns and len(df) > 1:
-            # Check for dimension filters
-            if "Dimension_1" in df.columns:
-                unique_dims = df["Dimension_1"].dropna().unique()
-                if len(unique_dims) > 1:
-                    selected_dim = st.selectbox("Filter by Dimension", options=["All"] + list(unique_dims))
-                    if selected_dim != "All":
-                        df = df[df["Dimension_1"] == selected_dim]
-            
             df_trend = df.groupby("Year")["Value"].mean().reset_index()
             fig = create_time_series_chart(df_trend, selected_indicator_name, selected_country_name)
             st.plotly_chart(fig, use_container_width=True)
 
         # Year filter for Country Analysis
         df_filtered = df
-        if "Year" in df.columns and available_years:
-            selected_year = st.selectbox(
-                "Select Year",
-                options=available_years,
-                index=len(available_years) - 1 if available_years else 0
-            )
+        if selected_year is not None and "Year" in df.columns:
             df_filtered = df[df["Year"] == selected_year]
         
         # Statistics
