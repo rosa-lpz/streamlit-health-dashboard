@@ -101,7 +101,18 @@ def fetch_countries() -> pd.DataFrame:
         
         if "value" in data:
             df = pd.DataFrame(data["value"])
-            return df[["Code", "Title"]].rename(columns={"Code": "code", "Title": "name"})
+            cols = ["Code", "Title"]
+            if "ParentCode" in df.columns:
+                cols.append("ParentCode")
+            if "ParentTitle" in df.columns:
+                cols.append("ParentTitle")
+            df = df[cols].rename(columns={
+                "Code": "code",
+                "Title": "name",
+                "ParentCode": "region_code",
+                "ParentTitle": "region_name"
+            })
+            return df
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Error fetching countries: {e}")
@@ -299,10 +310,28 @@ def main():
     
     # Fetch countries for selection
     countries_df = fetch_countries()
+    regions_df = fetch_regions()
     
+    # Region selection (before country selection)
+    selected_region_code = None
+    if not regions_df.empty:
+        region_options = {"All Regions": None}
+        region_options.update(dict(zip(regions_df["name"], regions_df["code"])))
+        selected_region_name = st.sidebar.selectbox(
+            "Select Region",
+            options=list(region_options.keys()),
+            index=0
+        )
+        selected_region_code = region_options[selected_region_name]
+
     if view_mode == "🔍 Country Analysis":
         if not countries_df.empty:
-            country_options = dict(zip(countries_df["name"], countries_df["code"]))
+            filtered_countries_df = countries_df
+            if selected_region_code and "region_code" in countries_df.columns:
+                filtered_countries_df = countries_df[countries_df["region_code"] == selected_region_code]
+            if filtered_countries_df.empty:
+                filtered_countries_df = countries_df
+            country_options = dict(zip(filtered_countries_df["name"], filtered_countries_df["code"]))
             selected_country_name = st.sidebar.selectbox(
                 "Select Country",
                 options=list(country_options.keys()),
@@ -340,6 +369,14 @@ def main():
     if df.empty:
         st.warning("⚠️ No valid data values available.")
         return
+
+    # Apply region filter when possible (global/comparison views)
+    if selected_region_code and "Country_Code" in df.columns:
+        if "region_code" in countries_df.columns:
+            region_countries = countries_df[countries_df["region_code"] == selected_region_code]["code"].unique()
+            df = df[df["Country_Code"].isin(region_countries)]
+        else:
+            st.sidebar.info("Region filter is unavailable (country-to-region mapping not provided by API).")
     
     # Get available years
     if "Year" in df.columns:
@@ -424,19 +461,34 @@ def main():
             df_trend = df.groupby("Year")["Value"].mean().reset_index()
             fig = create_time_series_chart(df_trend, selected_indicator_name, selected_country_name)
             st.plotly_chart(fig, use_container_width=True)
+
+        # Year filter for Country Analysis
+        df_filtered = df
+        if "Year" in df.columns and available_years:
+            selected_year = st.selectbox(
+                "Select Year",
+                options=available_years,
+                index=len(available_years) - 1 if available_years else 0
+            )
+            df_filtered = df[df["Year"] == selected_year]
         
         # Statistics
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            latest_value = df[df["Year"] == df["Year"].max()]["Value"].mean() if "Year" in df.columns else df["Value"].mean()
-            st.metric("Latest Value", f"{latest_value:.2f}" if pd.notna(latest_value) else "N/A")
-        
+            total_value = df_filtered["Value"].sum()
+            st.metric("Total Value", f"{total_value:.2f}" if pd.notna(total_value) else "N/A")
+
         with col2:
-            avg_value = df["Value"].mean()
-            st.metric("Average (All Years)", f"{avg_value:.2f}" if pd.notna(avg_value) else "N/A")
+            latest_value = df_filtered["Value"].mean() if not df_filtered.empty else float("nan")
+            st.metric("Latest Value", f"{latest_value:.2f}" if pd.notna(latest_value) else "N/A")
+
         
+
         with col3:
+            avg_value = df_filtered["Value"].mean()
+            st.metric("Average (All Years)", f"{avg_value:.2f}" if pd.notna(avg_value) else "N/A")
+        with col4:
             if "Year" in df.columns and len(df["Year"].unique()) > 1:
                 years = sorted(df["Year"].unique())
                 if len(years) >= 2:
@@ -456,7 +508,7 @@ def main():
         
         # Data table
         st.subheader("📋 Raw Data")
-        st.dataframe(df.sort_values("Year", ascending=False) if "Year" in df.columns else df, use_container_width=True)
+        st.dataframe(df_filtered.sort_values("Year", ascending=False) if "Year" in df_filtered.columns else df_filtered, use_container_width=True)
     
     elif view_mode == "📈 Comparison":
         st.subheader("📊 Country Comparison")
