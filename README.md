@@ -2,6 +2,7 @@
 
 A Streamlit dashboard for visualizing Health-Related Sustainable Development Goals (SDGs) using data from the World Health Organization (WHO) Global Health Observatory.
 
+See the demo in https://health-related-sustainable-development-goals-dashboard.streamlit.app/
 ## Features
 
 - 🌍 **Global Overview**: Interactive world map showing health indicators by country
