@@ -1,4 +1,4 @@
-# Health SDG Dashboard
+# Streamlit - Health-Related Sustainable Development Goals (SDGs) Dashboard
 
 A Streamlit dashboard for visualizing Health-Related Sustainable Development Goals (SDGs) using data from the World Health Organization (WHO) Global Health Observatory.
 
